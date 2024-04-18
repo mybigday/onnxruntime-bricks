@@ -9,6 +9,7 @@
 #include "run_options_helper.h"
 #include "session_options_helper.h"
 #include "tensor_helper.h"
+#include <memory>
 #include <string>
 
 Napi::FunctionReference InferenceSessionWrap::constructor;
@@ -214,7 +215,8 @@ Napi::Value InferenceSessionWrap::Run(const Napi::CallbackInfo &info) {
     Napi::Object result = Napi::Object::New(env);
 
     for (size_t i = 0; i < outputIndex; i++) {
-      result.Set(outputNames_[i], OrtValueToNapiValue(env, outputValues[i]));
+      result.Set(outputNames_[i],
+                 OrtValueToNapiValue(env, std::move(std::make_unique<Ort::Value>(std::move(outputValues[i])))));
     }
 
     return scope.Escape(result);
