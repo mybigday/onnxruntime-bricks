@@ -9,6 +9,8 @@
 #include <memory>
 #include <numeric>
 #include <random>
+#include <vector>
+#include <fstream>
 
 #include "gtest/gtest.h"
 
