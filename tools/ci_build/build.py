@@ -1626,7 +1626,8 @@ def generate_build_tree(
                         "-pipe",
                         "-ggdb3",
                     ]
-                if is_linux() and platform.machine() == "x86_64":
+                cross_arm = args.arm64 or args.arm64ec or args.arm
+                if is_linux() and platform.machine() == "x86_64" and not cross_arm:
                     # The following flags needs GCC 8 and newer
                     cflags += ["-fstack-clash-protection"]
                     if not args.rv64:
