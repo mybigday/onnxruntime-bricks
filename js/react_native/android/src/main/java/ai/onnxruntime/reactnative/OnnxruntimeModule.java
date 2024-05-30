@@ -12,6 +12,7 @@ import ai.onnxruntime.OrtSession.Result;
 import ai.onnxruntime.OrtSession.RunOptions;
 import ai.onnxruntime.OrtSession.SessionOptions;
 import ai.onnxruntime.providers.NNAPIFlags;
+import ai.onnxruntime.OrtLoggingLevel;
 import android.net.Uri;
 import android.os.Build;
 import android.util.Log;
@@ -406,6 +407,55 @@ public class OnnxruntimeModule extends ReactContextBaseJavaModule implements Lif
           sessionOptions.addNnapi(flags);
         } else if (epName.equals("xnnpack")) {
           sessionOptions.addXnnpack(Collections.emptyMap());
+        } else if (epName.equals("qnn")) {
+          // backend_path,profiling_level,htp_performance_mode,htp_power_saver,qnn_context_priority,qnn_saver_path
+          Map<String, String> qnnOptions = new HashMap<>();
+          if (epOptions != null) {
+            if (epOptions.hasKey("backendPath")) {
+              qnnOptions.put("backend_path", epOptions.getString("backendPath"));
+            }
+            // profiling_level
+            if (epOptions.hasKey("profilingLevel")) {
+              qnnOptions.put("profiling_level", epOptions.getString("profilingLevel"));
+            }
+            // htp_performance_mode
+            if (epOptions.hasKey("htpPerformanceMode")) {
+              qnnOptions.put("htp_performance_mode", epOptions.getString("htpPerformanceMode"));
+            }
+            // htp_power_saver
+            if (epOptions.hasKey("htpPowerSaver")) {
+              qnnOptions.put("htp_power_saver", epOptions.getString("htpPowerSaver"));
+            }
+            // qnn_context_priority
+            if (epOptions.hasKey("qnnContextPriority")) {
+              qnnOptions.put("qnn_context_priority", epOptions.getString("qnnContextPriority"));
+            }
+            // qnn_saver_path
+            if (epOptions.hasKey("qnnSaverPath")) {
+              qnnOptions.put("qnn_saver_path", epOptions.getString("qnnSaverPath"));
+            }
+            // soc_model
+            if (epOptions.hasKey("socModel")) {
+              qnnOptions.put("soc_model", epOptions.getString("socModel"));
+            }
+            // htp_arch
+            if (epOptions.hasKey("htpArch")) {
+              qnnOptions.put("htp_arch", epOptions.getString("htpArch"));
+            }
+            // device_id
+            if (epOptions.hasKey("deviceId")) {
+              qnnOptions.put("device_id", epOptions.getString("deviceId"));
+            }
+            // enable_htp_fp16_precision
+            if (epOptions.hasKey("enableHtpFp16Precision")) {
+              qnnOptions.put("enable_htp_fp16_precision", epOptions.getString("enableHtpFp16Precision"));
+            }
+            // htp_graph_finalization_optimization_mode
+            if (epOptions.hasKey("htpGraphFinalizationOptimizationMode")) {
+              qnnOptions.put("htp_graph_finalization_optimization_mode", epOptions.getString("htpGraphFinalizationOptimizationMode"));
+            }
+          }
+          sessionOptions.addQnn(qnnOptions);
         } else if (epName.equals("cpu")) {
           continue;
         } else {
@@ -421,7 +471,7 @@ public class OnnxruntimeModule extends ReactContextBaseJavaModule implements Lif
 
     if (options.hasKey("logSeverityLevel")) {
       int logSeverityLevel = options.getInt("logSeverityLevel");
-      sessionOptions.setSessionLogVerbosityLevel(logSeverityLevel);
+      sessionOptions.setSessionLogLevel(OrtLoggingLevel.mapFromInt(logSeverityLevel));
     }
 
     return sessionOptions;
@@ -432,7 +482,7 @@ public class OnnxruntimeModule extends ReactContextBaseJavaModule implements Lif
 
     if (options.hasKey("logSeverityLevel")) {
       int logSeverityLevel = options.getInt("logSeverityLevel");
-      runOptions.setLogVerbosityLevel(logSeverityLevel);
+      runOptions.setLogLevel(OrtLoggingLevel.mapFromInt(logSeverityLevel));
     }
 
     if (options.hasKey("tag")) {

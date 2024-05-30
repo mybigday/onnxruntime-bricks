@@ -37,6 +37,9 @@ void ParseExecutionProviders(const Napi::Array epList, Ort::SessionOptions &sess
     std::string name;
     int deviceId = 0;
     int coreMlFlags = 0;
+#if defined(USE_SNPE) || defined(USE_QNN)
+    std::unordered_map<std::string, std::string> ep_options;
+#endif
     if (epValue.IsString()) {
       name = epValue.As<Napi::String>().Utf8Value();
     } else if (!epValue.IsObject() || epValue.IsNull() || !epValue.As<Napi::Object>().Has("name") ||
@@ -52,6 +55,52 @@ void ParseExecutionProviders(const Napi::Array epList, Ort::SessionOptions &sess
       if (obj.Has("coreMlFlags")) {
         coreMlFlags = obj.Get("coreMlFlags").As<Napi::Number>();
       }
+#ifdef USE_SNPE
+      if (obj.Has("runtime")) {
+        ep_options["runtime"] = obj.Get("runtime").As<Napi::String>().Utf8Value();
+      }
+      if (obj.Has("priority")) {
+        ep_options["priority"] = obj.Get("priority").As<Napi::String>().Utf8Value();
+      }
+      if (obj.Has("bufferType")) {
+        ep_options["buffer_type"] = obj.Get("bufferType").As<Napi::String>().Utf8Value();
+      }
+      if (obj.Has("enableInitCache")) {
+        ep_options["enable_init_cache"] = obj.Get("enableInitCache").As<Napi::String>().Utf8Value();
+      }
+#endif
+#ifdef USE_QNN
+      if (obj.Has("backendPath")) {
+        ep_options["backend_path"] = obj.Get("backendPath").As<Napi::String>().Utf8Value();
+      }
+      if (obj.Has("profilingLevel")) {
+        ep_options["profiling_level"] = obj.Get("profilingLevel").As<Napi::String>().Utf8Value();
+      }
+      if (obj.Has("htpPerformanceMode")) {
+        ep_options["htp_performance_mode"] = obj.Get("htpPerformanceMode").As<Napi::String>().Utf8Value();
+      }
+      if (obj.Has("qnnContextPriority")) {
+        ep_options["qnn_context_priority"] = obj.Get("qnnContextPriority").As<Napi::String>().Utf8Value();
+      }
+      if (obj.Has("qnnSaverPath")) {
+        ep_options["qnn_saver_path"] = obj.Get("qnnSaverPath").As<Napi::String>().Utf8Value();
+      }
+      if (obj.Has("socModel")) {
+        ep_options["soc_model"] = obj.Get("socModel").As<Napi::String>().Utf8Value();
+      }
+      if (obj.Has("htpArch")) {
+        ep_options["htp_arch"] = obj.Get("htpArch").As<Napi::String>().Utf8Value();
+      }
+      if (obj.Has("deviceId")) {
+        ep_options["device_id"] = obj.Get("deviceId").As<Napi::String>().Utf8Value();
+      }
+      if (obj.Has("enableHtpFp16Precision")) {
+        ep_options["enable_htp_fp16_precision"] = obj.Get("enableHtpFp16Precision").As<Napi::String>().Utf8Value();
+      }
+      if (obj.Has("htpGraphFinalizationOptimizationMode")) {
+        ep_options["htp_graph_finalization_optimization_mode"] = obj.Get("htpGraphFinalizationOptimizationMode").As<Napi::String>().Utf8Value();
+      }
+#endif
     }
 
     // CPU execution provider
@@ -80,6 +129,18 @@ void ParseExecutionProviders(const Napi::Array epList, Ort::SessionOptions &sess
 #ifdef USE_COREML
     } else if (name == "coreml") {
       Ort::ThrowOnError(OrtSessionOptionsAppendExecutionProvider_CoreML(sessionOptions, coreMlFlags));
+#endif
+#ifdef USE_SNPE
+    } else if (name == "snpe") {
+      sessionOptions.AppendExecutionProvider("SNPE", ep_options);
+#endif
+#ifdef USE_QNN
+    } else if (name == "qnn") {
+      sessionOptions.AppendExecutionProvider("QNN", ep_options);
+#endif
+#ifdef USE_XNNPACK
+    } else if (name == "xnnpack") {
+      sessionOptions.AppendExecutionProvider("XNNPACK", {});
 #endif
     } else {
       ORT_NAPI_THROW_ERROR(epList.Env(), "Invalid argument: sessionOptions.executionProviders[", i,

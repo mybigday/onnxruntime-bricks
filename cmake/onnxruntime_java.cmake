@@ -179,6 +179,29 @@ else()
   endif()
 endif()
 
+if (onnxruntime_USE_QNN)
+  include(${CMAKE_SOURCE_DIR}/external/qnn.cmake)
+endif()
+
+if (QNN_SO_FILES)
+  add_custom_command(
+    TARGET onnxruntime4j_jni
+    POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${QNN_SO_FILES} ${JAVA_PACKAGE_JNI_DIR}
+  )
+endif()
+
+if (onnxruntime_USE_SNPE)
+  include(${CMAKE_SOURCE_DIR}/external/find_snpe.cmake)
+  if (SNPE_SO_FILES)
+    add_custom_command(
+      TARGET onnxruntime4j_jni
+      POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different ${SNPE_SO_FILES} ${JAVA_PACKAGE_JNI_DIR}
+    )
+  endif()
+endif()
+
 # run the build process (this copies the results back into CMAKE_CURRENT_BINARY_DIR)
 set(GRADLE_ARGS --console=plain cmakeBuild -DcmakeBuildDir=${CMAKE_CURRENT_BINARY_DIR})
 if(WIN32)
@@ -208,6 +231,16 @@ if (CMAKE_SYSTEM_NAME STREQUAL "Android")
   # Copy onnxruntime.so and onnxruntime4j_jni.so for building Android AAR package
   add_custom_command(TARGET onnxruntime4j_jni POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:onnxruntime> ${ANDROID_PACKAGE_ABI_DIR}/$<TARGET_LINKER_FILE_NAME:onnxruntime>)
   add_custom_command(TARGET onnxruntime4j_jni POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:onnxruntime4j_jni> ${ANDROID_PACKAGE_ABI_DIR}/$<TARGET_LINKER_FILE_NAME:onnxruntime4j_jni>)
+
+  # Copy libQnn*.so for building Android AAR package
+  if (QNN_SO_FILES)
+    add_custom_command(TARGET onnxruntime4j_jni POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_if_different ${QNN_SO_FILES} ${ANDROID_PACKAGE_ABI_DIR})
+  endif()
+
+  # Copy libSNPE*.so for building Android AAR package
+  if (SNPE_SO_FILES)
+    add_custom_command(TARGET onnxruntime4j_jni POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_if_different ${SNPE_SO_FILES} ${ANDROID_PACKAGE_ABI_DIR})
+  endif()
 
   # Generate the Android AAR package
   add_custom_command(TARGET onnxruntime4j_jni

@@ -37,6 +37,9 @@ option(USE_DML "Build with DirectML support" OFF)
 option(USE_CUDA "Build with CUDA support" OFF)
 option(USE_TENSORRT "Build with TensorRT support" OFF)
 option(USE_COREML "Build with CoreML support" OFF)
+option(USE_SNPE "Build with SNPE support" OFF)
+option(USE_QNN "Build with QNN support" OFF)
+option(USE_XNNPACK "Build with XNNPACK support" OFF)
 
 if(USE_DML)
   add_compile_definitions(USE_DML=1)
@@ -49,6 +52,17 @@ if(USE_TENSORRT)
 endif()
 if(USE_COREML)
   add_compile_definitions(USE_COREML=1)
+endif()
+if(USE_SNPE)
+  include(${CMAKE_SOURCE_DIR}/../../cmake/external/find_snpe.cmake)
+  add_compile_definitions(USE_SNPE=1)
+endif()
+if(USE_QNN)
+  include(${CMAKE_SOURCE_DIR}/../../cmake/external/qnn.cmake)
+  add_compile_definitions(USE_QNN=1)
+endif()
+if(USE_XNNPACK)
+  add_compile_definitions(USE_XNNPACK=1)
 endif()
 
 # source files
@@ -66,17 +80,9 @@ if(MSVC AND CMAKE_JS_NODELIB_DEF AND CMAKE_JS_NODELIB_TARGET)
   execute_process(COMMAND ${CMAKE_AR} /def:${CMAKE_JS_NODELIB_DEF} /out:${CMAKE_JS_NODELIB_TARGET} ${CMAKE_STATIC_LINKER_FLAGS})
 endif()
 
-if (WIN32)
-  if (${ONNXRUNTIME_GENERATOR} MATCHES "Ninja")
-    set(ONNXRUNTIME_WIN_BIN_DIR ${ONNXRUNTIME_BUILD_DIR})
-  else()
-    set(ONNXRUNTIME_WIN_BIN_DIR ${ONNXRUNTIME_BUILD_DIR}/${CMAKE_BUILD_TYPE})
-  endif()
-  message(STATUS "onnxruntime dist dir: ${ONNXRUNTIME_WIN_BIN_DIR}")
-endif()
 # add libraries
 if (WIN32)
-  target_link_directories(onnxruntime_binding PRIVATE ${ONNXRUNTIME_WIN_BIN_DIR})
+  target_link_directories(onnxruntime_binding PRIVATE ${ONNXRUNTIME_BUILD_DIR}/${CMAKE_BUILD_TYPE})
 else()
   target_link_directories(onnxruntime_binding PRIVATE ${ONNXRUNTIME_BUILD_DIR})
 endif()
@@ -99,18 +105,36 @@ add_custom_command(
     COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:onnxruntime_binding> ${dist_folder}
 )
 
+if (USE_SNPE)
+  add_custom_command(
+    TARGET onnxruntime_binding POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy
+      ${SNPE_SO_FILES}
+      ${dist_folder}
+  )
+endif()
+
+if (USE_QNN)
+  add_custom_command(
+    TARGET onnxruntime_binding POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy
+      ${QNN_SO_FILES}
+      ${dist_folder}
+  )
+endif()
+
 if (WIN32)
   add_custom_command(
     TARGET onnxruntime_binding POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy
-      ${ONNXRUNTIME_WIN_BIN_DIR}/onnxruntime.dll
+      ${ONNXRUNTIME_BUILD_DIR}/${CMAKE_BUILD_TYPE}/onnxruntime.dll
       ${dist_folder}
   )
   if (USE_DML)
     add_custom_command(
       TARGET onnxruntime_binding POST_BUILD
       COMMAND ${CMAKE_COMMAND} -E copy
-      ${ONNXRUNTIME_WIN_BIN_DIR}/DirectML.dll
+      ${ONNXRUNTIME_BUILD_DIR}/${CMAKE_BUILD_TYPE}/DirectML.dll
       ${dist_folder}
     )
   endif ()
@@ -118,7 +142,7 @@ if (WIN32)
     add_custom_command(
       TARGET onnxruntime_binding POST_BUILD
       COMMAND ${CMAKE_COMMAND} -E copy
-        ${ONNXRUNTIME_WIN_BIN_DIR}/onnxruntime.pdb
+        ${ONNXRUNTIME_BUILD_DIR}/${CMAKE_BUILD_TYPE}/onnxruntime.pdb
         ${dist_folder}
       COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE_DIR:onnxruntime_binding>/onnxruntime_binding.pdb ${dist_folder}
     )
