@@ -135,8 +135,6 @@ Status MatMul::Compute(OpKernelContext* ctx) const {
     return Status::OK();
 
   auto* y_data = y->MutableData<float>();
-
-  xnn_status status = xnn_status::xnn_status_uninitialized;
   auto a_shape = a->Shape();
 
   ORT_ENFORCE(a_shape[a_shape.NumDimensions() - 1] == b_shape_[0], "A and B channels does not match");
