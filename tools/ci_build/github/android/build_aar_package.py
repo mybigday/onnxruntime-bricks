@@ -9,6 +9,7 @@ import pathlib
 import shutil
 import subprocess
 import sys
+from glob import glob
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 REPO_DIR = os.path.normpath(os.path.join(SCRIPT_DIR, "..", "..", "..", ".."))
@@ -76,6 +77,10 @@ def _parse_build_settings(args):
 
     return build_settings
 
+def _filter_build_params(abi, build_params):
+    if abi == "arm64-v8a":
+        return build_params
+    return [arg for arg in build_params if 'qnn' not in arg and 'snpe' not in arg]
 
 def _build_aar(args):
     build_settings = _parse_build_settings(args)
@@ -101,6 +106,9 @@ def _build_aar(args):
         abi_build_dir = os.path.join(intermediates_dir, abi)
         abi_build_command = [*base_build_command, "--android_abi=" + abi, "--build_dir=" + abi_build_dir]
 
+        # drop --use_qnn / --use_snpe for non-ARM64 abis
+        abi_build_command = _filter_build_params(abi, abi_build_command)
+
         if ops_config_path is not None:
             abi_build_command += ["--include_ops_by_config=" + ops_config_path]
 
@@ -110,8 +118,15 @@ def _build_aar(args):
         # to jnilibs/[abi] for later compiling the aar package
         abi_jnilibs_dir = os.path.join(jnilibs_dir, abi)
         os.makedirs(abi_jnilibs_dir, exist_ok=True)
-        for lib_name in ["libonnxruntime.so", "libonnxruntime4j_jni.so"]:
-            target_lib_name = os.path.join(abi_jnilibs_dir, lib_name)
+
+        # extra libs for QNN
+        extra_libs = []
+        for file_path in glob(os.path.join(abi_build_dir, build_config, "java/android/**/*.so")):
+            if "libonnxruntime" not in os.path.basename(file_path):
+                extra_libs.append(os.path.relpath(file_path, os.path.join(abi_build_dir, build_config)))
+
+        for lib_name in ["libonnxruntime.so", "libonnxruntime4j_jni.so"] + extra_libs:
+            target_lib_name = os.path.join(abi_jnilibs_dir, os.path.basename(lib_name))
             # If the symbolic already exists, delete it first
             # For some reason, os.path.exists will return false for a symbolic link in Linux,
             # add double check with os.path.islink
@@ -149,11 +164,9 @@ def _build_aar(args):
         "-DminSdkVer=" + str(build_settings["android_min_sdk_version"]),
         "-DtargetSdkVer=" + str(build_settings["android_target_sdk_version"]),
         "-DbuildVariant=" + str(build_settings["build_variant"]),
-        (
-            "-DENABLE_TRAINING_APIS=1"
-            if "--enable_training_apis" in build_settings["build_params"]
-            else "-DENABLE_TRAINING_APIS=0"
-        ),
+        "-DENABLE_TRAINING_APIS=1"
+        if "--enable_training_apis" in build_settings["build_params"]
+        else "-DENABLE_TRAINING_APIS=0",
     ]
 
     # clean, build, and publish to a local directory
