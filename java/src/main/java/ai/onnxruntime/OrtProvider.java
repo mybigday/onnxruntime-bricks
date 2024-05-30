@@ -39,6 +39,10 @@ public enum OrtProvider {
   CORE_ML("CoreMLExecutionProvider"),
   /** The XNNPACK execution provider. */
   XNNPACK("XnnpackExecutionProvider"),
+  /** The QNN execution provider. */
+  QNN("QNNExecutionProvider"),
+  /** The SNPE execution provider. */
+  SNPE("SNPEExecutionProvider"),
   /** The Azure remote endpoint execution provider. */
   AZURE("AzureExecutionProvider");
 

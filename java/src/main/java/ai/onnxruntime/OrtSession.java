@@ -1239,6 +1239,46 @@ public class OrtSession implements AutoCloseable {
       addExecutionProvider(
           OnnxRuntime.ortApiHandle, nativeHandle, "XNNPACK", providerOptionKey, providerOptionVal);
     }
+    
+    /**
+     * Adds QNN as an execution backend.
+     *
+     * @param providerOptions options pass to QNN EP for initialization.
+     * @throws OrtException If there was an error in native code.
+     */
+    public void addQnn(Map<String, String> providerOptions) throws OrtException {
+      checkClosed();
+      String[] providerOptionKey = new String[providerOptions.size()];
+      String[] providerOptionVal = new String[providerOptions.size()];
+      int i = 0;
+      for (Map.Entry<String, String> entry : providerOptions.entrySet()) {
+        providerOptionKey[i] = entry.getKey();
+        providerOptionVal[i] = entry.getValue();
+        i++;
+      }
+      addExecutionProvider(
+          OnnxRuntime.ortApiHandle, nativeHandle, "QNN", providerOptionKey, providerOptionVal);
+    }
+
+    /**
+     * Adds SNPE as an execution backend.
+     *
+     * @param providerOptions options pass to SNPE EP for initialization.
+     * @throws OrtException If there was an error in native code.
+     */
+    public void addSnpe(Map<String, String> providerOptions) throws OrtException {
+      checkClosed();
+      String[] providerOptionKey = new String[providerOptions.size()];
+      String[] providerOptionVal = new String[providerOptions.size()];
+      int i = 0;
+      for (Map.Entry<String, String> entry : providerOptions.entrySet()) {
+        providerOptionKey[i] = entry.getKey();
+        providerOptionVal[i] = entry.getValue();
+        i++;
+      }
+      addExecutionProvider(
+          OnnxRuntime.ortApiHandle, nativeHandle, "SNPE", providerOptionKey, providerOptionVal);
+    }
 
     private native void setExecutionMode(long apiHandle, long nativeHandle, int mode)
         throws OrtException;
