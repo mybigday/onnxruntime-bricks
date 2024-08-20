@@ -73,13 +73,8 @@ endif()
 if (onnxruntime_USE_COREML)
     set(NODEJS_BINDING_USE_COREML "--use_coreml")
 endif()
-if (onnxruntime_USE_SNPE)
-    set(NODEJS_BINDING_USE_SNPE "--use_snpe")
-    set(NODEJS_BINDING_USE_SNPE_ROOT "--snpe_root=${SNPE_ROOT}")
-endif()
 if (onnxruntime_USE_QNN)
     set(NODEJS_BINDING_USE_QNN "--use_qnn")
-    set(NODEJS_BINDING_USE_QNN_ROOT "--qnn_root=${onnxruntime_QNN_HOME}")
 endif()
 if (onnxruntime_USE_XNNPACK)
     set(NODEJS_BINDING_USE_XNNPACK "--use_xnnpack")
@@ -101,11 +96,7 @@ add_custom_target(nodejs_binding_wrapper ALL
     COMMAND ${NPM_CLI} ci
     COMMAND ${NPM_CLI} run build -- --onnxruntime-build-dir=${CMAKE_CURRENT_BINARY_DIR} --config=${CMAKE_BUILD_TYPE}
         --arch=${NODEJS_BINDING_ARCH} ${NODEJS_BINDING_USE_CUDA} ${NODEJS_BINDING_USE_DML} ${NODEJS_BINDING_USE_TENSORRT}
-        ${NODEJS_BINDING_USE_COREML}
-        ${NODEJS_BINDING_USE_SNPE} ${NODEJS_BINDING_USE_SNPE_ROOT}
-        ${NODEJS_BINDING_USE_XNNPACK}
-        ${NODEJS_BINDING_USE_QNN} ${NODEJS_BINDING_USE_QNN_ROOT}
-        ${NODEJS_BINDING_USE_DNNL}
+        ${NODEJS_BINDING_USE_COREML} ${NODEJS_BINDING_USE_QNN} ${NODEJS_BINDING_USE_XNNPACK}
     WORKING_DIRECTORY ${JS_NODE_ROOT}
     COMMENT "Using cmake-js to build OnnxRuntime Node.js binding")
 

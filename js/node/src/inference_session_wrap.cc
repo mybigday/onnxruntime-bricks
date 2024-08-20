@@ -265,17 +265,11 @@ Napi::Value InferenceSessionWrap::ListSupportedBackends(const Napi::CallbackInfo
 #ifdef USE_COREML
   result.Set(result.Length(), createObject("coreml", true));
 #endif
-#ifdef USE_XNNPACK
-  result.Set(result.Length(), createObject("xnnpack", true));
-#endif
-#ifdef USE_SNPE
-  result.Set(result.Length(), createObject("snpe", true));
-#endif
 #ifdef USE_QNN
   result.Set(result.Length(), createObject("qnn", true));
 #endif
-#ifdef USE_DNNL
-  result.Set(result.Length(), createObject("dnnl", true));
+#ifdef USE_XNNPACK
+  result.Set(result.Length(), createObject("xnnpack", true));
 #endif
 
   return scope.Escape(result);

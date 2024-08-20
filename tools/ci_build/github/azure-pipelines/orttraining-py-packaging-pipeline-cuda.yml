@@ -1,13 +1,5 @@
 trigger: none
 
-resources:
-  repositories:
-  - repository: manylinux
-    type: Github
-    endpoint: Microsoft
-    name: pypa/manylinux
-    ref: 5eda9aded5462201e6310105728d33016e637ea7
-
 parameters:
   - name: SpecificArtifact
     displayName: Use Specific Artifact
@@ -26,7 +18,7 @@ stages:
     torch_version: '2.0.0'
     opset_version: '17'
     cuda_version: '11.8'
-    cmake_cuda_architectures: 60;61;70;75;80;86
+    cmake_cuda_architectures: 70;75;80;86
     docker_file: Dockerfile.manylinux2_28_training_cuda11_8
     agent_pool: Onnxruntime-Linux-GPU
     upload_wheel: 'yes'

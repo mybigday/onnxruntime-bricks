@@ -130,10 +130,6 @@ void ParseExecutionProviders(const Napi::Array epList, Ort::SessionOptions &sess
     } else if (name == "coreml") {
       Ort::ThrowOnError(OrtSessionOptionsAppendExecutionProvider_CoreML(sessionOptions, coreMlFlags));
 #endif
-#ifdef USE_SNPE
-    } else if (name == "snpe") {
-      sessionOptions.AppendExecutionProvider("SNPE", ep_options);
-#endif
 #ifdef USE_QNN
     } else if (name == "qnn") {
       sessionOptions.AppendExecutionProvider("QNN", ep_options);

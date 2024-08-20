@@ -31,11 +31,11 @@ parameters:
 - name: QnnSdk
   displayName: QNN SDK version
   type: string
-  default: 2.21.0.240401
+  default: 2.25.0.240728
 
 jobs:
 - job: Build_QNN_EP
-  pool: onnxruntime-qnn-ubuntu-2004-cpu
+  pool: onnxruntime-Ubuntu2204-AMD-CPU
   timeoutInMinutes: 30
   workspace:
     clean: all
@@ -45,6 +45,10 @@ jobs:
     displayName: Use Python $(pythonVersion)
     inputs:
       versionSpec: $(pythonVersion)
+
+  - script: |
+      env | grep ANDROID
+    displayName: View Android ENVs
 
   - script: sudo apt-get update -y && sudo apt-get install -y coreutils ninja-build
     displayName: Install coreutils and ninja
@@ -57,16 +61,9 @@ jobs:
       QnnSDKVersion: ${{ parameters.QnnSdk }}
 
   - script: |
-      export ANDROID_SDK_ROOT=/usr/local/lib/android/sdk
-      export ANDROID_HOME=/usr/local/lib/android/sdk
-      export ANDROID_NDK_HOME=/usr/local/lib/android/sdk/ndk-bundle
-      export ANDROID_NDK_ROOT=/usr/local/lib/android/sdk/ndk-bundle
-    displayName: set Android ENVs
-
-  - script: |
       set -e -x
       rm -rf /tmp/scripts
-      cp -r tools/ci_build/github/linux/docker/inference/x64/python/cpu/scripts /tmp
+      cp -r tools/ci_build/github/linux/docker/inference/x86_64/python/cpu/scripts /tmp
       /tmp/scripts/install_protobuf.sh -p $(Build.BinariesDirectory)/installed -d cmake/deps.txt
       python3 tools/ci_build/build.py \
         --config Release \

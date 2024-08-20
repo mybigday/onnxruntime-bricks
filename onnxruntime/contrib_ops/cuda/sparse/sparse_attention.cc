@@ -3,7 +3,7 @@
 
 #include "contrib_ops/cuda/sparse/sparse_attention_impl.h"
 #include "contrib_ops/cuda/sparse/sparse_attention.h"
-#include "contrib_ops/cuda/sparse/sparse_attention_helper.h"
+#include "contrib_ops/cpu/sparse/sparse_attention_helper.h"
 #include "contrib_ops/cuda/sparse/sparse_attention_v1/sparse_attention_v1_api.h"
 #include "contrib_ops/cuda/sparse/sparse_attention_v2/sparse_attention_v2_api.h"
 #include "core/platform/env_var_utils.h"
@@ -54,8 +54,6 @@ SparseAttention<T>::SparseAttention(const OpKernelInfo& info)
   rotary_interleaved_ = info.GetAttrOrDefault<int64_t>("rotary_interleaved", 0) == 1;
 
   scale_ = info.GetAttrOrDefault<float>("scale", 0.0f);
-
-  kernel_loaded_ = false;
 
   disable_v1_kernel_ = ParseEnvironmentVariableWithDefault<bool>(sparse_attention::kDisableSparseAttentionV1, false);
 }
@@ -150,24 +148,21 @@ Status SparseAttention<T>::ComputeInternal(OpKernelContext* context) const {
     CUDA_RETURN_IF_ERROR(cudaEventRecord(isCopyDone, cuda_stream));
   }
 
-  if (!kernel_loaded_) {
-    if constexpr (std::is_same<T, MLFloat16>::value) {
-      // std::call_once is used in load_sparse_attention_fp16 so no need to use mutex here.
-      // After kernel is loaded, it will stay in memory until the process exits. We do not unload explicitly.
-      // TODO(tianleiwu): use TSharedCubinKernelFactory to manage kernel loading/unloading.
-      if (use_v2_kernel) {
-        sparse_attention_v2::load_sparse_attention_fp16(sm);
-      } else {
-        sparse_attention_v1::load_sparse_attention_fp16(sm);
-      }
+  if constexpr (std::is_same<T, MLFloat16>::value) {
+    // std::call_once is used in load_sparse_attention_fp16 so no need to use mutex here.
+    // After kernel is loaded, it will stay in memory until the process exits. We do not unload explicitly.
+    // TODO(tianleiwu): use TSharedCubinKernelFactory to manage kernel loading/unloading.
+    if (use_v2_kernel) {
+      sparse_attention_v2::load_sparse_attention_fp16(sm);
     } else {
-      if (use_v2_kernel) {
-        sparse_attention_v2::load_sparse_attention_bf16(sm);
-      } else {
-        sparse_attention_v1::load_sparse_attention_bf16(sm);
-      }
+      sparse_attention_v1::load_sparse_attention_fp16(sm);
     }
-    kernel_loaded_ = true;
+  } else {
+    if (use_v2_kernel) {
+      sparse_attention_v2::load_sparse_attention_bf16(sm);
+    } else {
+      sparse_attention_v1::load_sparse_attention_bf16(sm);
+    }
   }
 
   // Compute output shape and get output tensors.

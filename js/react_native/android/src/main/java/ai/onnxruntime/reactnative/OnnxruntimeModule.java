@@ -7,6 +7,7 @@ import ai.onnxruntime.OnnxTensor;
 import ai.onnxruntime.OnnxValue;
 import ai.onnxruntime.OrtEnvironment;
 import ai.onnxruntime.OrtException;
+import ai.onnxruntime.OrtLoggingLevel;
 import ai.onnxruntime.OrtSession;
 import ai.onnxruntime.OrtSession.Result;
 import ai.onnxruntime.OrtSession.RunOptions;
@@ -349,7 +350,7 @@ public class OnnxruntimeModule extends ReactContextBaseJavaModule implements Lif
     if (options.hasKey("interOpNumThreads")) {
       int interOpNumThreads = options.getInt("interOpNumThreads");
       if (interOpNumThreads > 0 && interOpNumThreads < Integer.MAX_VALUE) {
-        sessionOptions.setIntraOpNumThreads(interOpNumThreads);
+        sessionOptions.setInterOpNumThreads(interOpNumThreads);
       }
     }
 

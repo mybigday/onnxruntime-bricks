@@ -33,14 +33,8 @@ const USE_CUDA = !!buildArgs.use_cuda;
 const USE_TENSORRT = !!buildArgs.use_tensorrt;
 // --use_coreml
 const USE_COREML = !!buildArgs.use_coreml;
-// --use_snpe
-const USE_SNPE = !!buildArgs.use_snpe;
-// --snpe_root=
-const SNPE_ROOT = buildArgs.snpe_root;
 // --use_qnn
 const USE_QNN = !!buildArgs.use_qnn;
-// --qnn_root=
-const QNN_ROOT = buildArgs.qnn_root;
 // --use_xnnpack
 const USE_XNNPACK = !!buildArgs.use_xnnpack;
 
@@ -77,13 +71,8 @@ if (USE_TENSORRT) {
 if (USE_COREML) {
   args.push('--CDUSE_COREML=ON');
 }
-if (USE_SNPE && SNPE_ROOT) {
-  args.push('--CDUSE_SNPE=ON');
-  args.push(`--CDSNPE_ROOT=${SNPE_ROOT}`);
-}
-if (USE_QNN && QNN_ROOT) {
+if (USE_QNN) {
   args.push('--CDUSE_QNN=ON');
-  args.push(`--CDonnxruntime_QNN_HOME=${QNN_ROOT}`);
 }
 if (USE_XNNPACK) {
   args.push('--CDUSE_XNNPACK=ON');

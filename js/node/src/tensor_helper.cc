@@ -38,13 +38,13 @@ constexpr size_t DATA_TYPE_ELEMENT_SIZE_MAP[] = {
     2, // ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT16
     2, // ONNX_TENSOR_ELEMENT_DATA_TYPE_INT16
     4, // ONNX_TENSOR_ELEMENT_DATA_TYPE_INT32
-    8, // ONNX_TENSOR_ELEMENT_DATA_TYPE_INT64         INT64 not working in Javascript
+    8, // ONNX_TENSOR_ELEMENT_DATA_TYPE_INT64
     0, // ONNX_TENSOR_ELEMENT_DATA_TYPE_STRING        N/A
     1, // ONNX_TENSOR_ELEMENT_DATA_TYPE_BOOL
-    0, // ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT16       FLOAT16 not working in Javascript
+    2, // ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT16
     8, // ONNX_TENSOR_ELEMENT_DATA_TYPE_DOUBLE
     4, // ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT32
-    8, // ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT64        UINT64 not working in Javascript
+    8, // ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT64
     0, // ONNX_TENSOR_ELEMENT_DATA_TYPE_COMPLEX64     not supported
     0, // ONNX_TENSOR_ELEMENT_DATA_TYPE_COMPLEX128    not supported
     0  // ONNX_TENSOR_ELEMENT_DATA_TYPE_BFLOAT16      not supported
@@ -60,13 +60,13 @@ constexpr napi_typedarray_type DATA_TYPE_TYPEDARRAY_MAP[] = {
     napi_uint16_array,          // ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT16
     napi_int16_array,           // ONNX_TENSOR_ELEMENT_DATA_TYPE_INT16
     napi_int32_array,           // ONNX_TENSOR_ELEMENT_DATA_TYPE_INT32
-    napi_bigint64_array,        // ONNX_TENSOR_ELEMENT_DATA_TYPE_INT64         INT64 not working i
+    napi_bigint64_array,        // ONNX_TENSOR_ELEMENT_DATA_TYPE_INT64
     (napi_typedarray_type)(-1), // ONNX_TENSOR_ELEMENT_DATA_TYPE_STRING        not supported
     napi_uint8_array,           // ONNX_TENSOR_ELEMENT_DATA_TYPE_BOOL
-    (napi_typedarray_type)(-1), // ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT16       FLOAT16 not working
+    napi_uint16_array,          // ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT16       FLOAT16 uses Uint16Array
     napi_float64_array,         // ONNX_TENSOR_ELEMENT_DATA_TYPE_DOUBLE
     napi_uint32_array,          // ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT32
-    napi_biguint64_array,       // ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT64        UINT64 not working
+    napi_biguint64_array,       // ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT64
     (napi_typedarray_type)(-1), // ONNX_TENSOR_ELEMENT_DATA_TYPE_COMPLEX64     not supported
     (napi_typedarray_type)(-1), // ONNX_TENSOR_ELEMENT_DATA_TYPE_COMPLEX128    not supported
     (napi_typedarray_type)(-1)  // ONNX_TENSOR_ELEMENT_DATA_TYPE_BFLOAT16      not supported
