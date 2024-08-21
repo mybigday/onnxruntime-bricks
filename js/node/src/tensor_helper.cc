@@ -53,7 +53,7 @@ static_assert(sizeof(DATA_TYPE_ELEMENT_SIZE_MAP) == sizeof(size_t) * ONNX_TENSOR
               "definition not matching");
 
 constexpr napi_typedarray_type DATA_TYPE_TYPEDARRAY_MAP[] = {
-    (napi_typedarray_type)(-1), // ONNX_TENSOR_ELEMENT_DATA_TYPE_UNDEFINED     not supported
+    napi_int8_array,            // ONNX_TENSOR_ELEMENT_DATA_TYPE_UNDEFINED     not supported
     napi_float32_array,         // ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT
     napi_uint8_array,           // ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT8
     napi_int8_array,            // ONNX_TENSOR_ELEMENT_DATA_TYPE_INT8
@@ -61,15 +61,15 @@ constexpr napi_typedarray_type DATA_TYPE_TYPEDARRAY_MAP[] = {
     napi_int16_array,           // ONNX_TENSOR_ELEMENT_DATA_TYPE_INT16
     napi_int32_array,           // ONNX_TENSOR_ELEMENT_DATA_TYPE_INT32
     napi_bigint64_array,        // ONNX_TENSOR_ELEMENT_DATA_TYPE_INT64
-    (napi_typedarray_type)(-1), // ONNX_TENSOR_ELEMENT_DATA_TYPE_STRING        not supported
+    napi_int8_array,            // ONNX_TENSOR_ELEMENT_DATA_TYPE_STRING        not supported
     napi_uint8_array,           // ONNX_TENSOR_ELEMENT_DATA_TYPE_BOOL
     napi_uint16_array,          // ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT16       FLOAT16 uses Uint16Array
     napi_float64_array,         // ONNX_TENSOR_ELEMENT_DATA_TYPE_DOUBLE
     napi_uint32_array,          // ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT32
     napi_biguint64_array,       // ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT64
-    (napi_typedarray_type)(-1), // ONNX_TENSOR_ELEMENT_DATA_TYPE_COMPLEX64     not supported
-    (napi_typedarray_type)(-1), // ONNX_TENSOR_ELEMENT_DATA_TYPE_COMPLEX128    not supported
-    (napi_typedarray_type)(-1)  // ONNX_TENSOR_ELEMENT_DATA_TYPE_BFLOAT16      not supported
+    napi_int8_array,            // ONNX_TENSOR_ELEMENT_DATA_TYPE_COMPLEX64     not supported
+    napi_int8_array,            // ONNX_TENSOR_ELEMENT_DATA_TYPE_COMPLEX128    not supported
+    napi_int8_array             // ONNX_TENSOR_ELEMENT_DATA_TYPE_BFLOAT16      not supported
 };
 static_assert(sizeof(DATA_TYPE_TYPEDARRAY_MAP) == sizeof(napi_typedarray_type) * ONNX_TENSOR_ELEMENT_DATA_TYPE_COUNT,
               "definition not matching");
