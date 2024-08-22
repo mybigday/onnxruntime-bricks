@@ -75,10 +75,6 @@ def _parse_build_settings(args):
 
     return build_settings
 
-def _filter_build_params(abi, build_params):
-    if abi == "arm64-v8a":
-        return build_params
-    return [arg for arg in build_params if 'qnn' not in arg and 'snpe' not in arg]
 
 def _build_aar(args):
     build_settings = _parse_build_settings(args)
@@ -104,8 +100,12 @@ def _build_aar(args):
         abi_build_dir = os.path.join(intermediates_dir, abi)
         abi_build_command = [*base_build_command, "--android_abi=" + abi, "--build_dir=" + abi_build_dir]
 
-        # drop --use_qnn / --use_snpe for non-ARM64 abis
-        abi_build_command = _filter_build_params(abi, abi_build_command)
+        if abi == "arm64-v8a":
+            if "--use_qnn" in abi_build_command:
+                abi_build_command.append(f"--qnn_home={args.qnn_home}")
+        else:
+            if "--use_qnn" in abi_build_command:
+                abi_build_command.remove("--use_qnn")
 
         if ops_config_path is not None:
             abi_build_command += ["--include_ops_by_config=" + ops_config_path]
@@ -190,6 +190,10 @@ def parse_args():
 
     parser.add_argument(
         "--android_ndk_path", type=str, default=os.environ.get("ANDROID_NDK_HOME", ""), help="Path to the Android NDK"
+    )
+
+    parser.add_argument(
+        "--qnn_home", type=str, default=os.environ.get("QNN_SDK_ROOT", ""), help="Path to the QNN library"
     )
 
     parser.add_argument(
