@@ -44,7 +44,7 @@ const IS_LINUX_X64 = os.platform() === 'linux' && os.arch() === 'x64';
 const BIN_FOLDER = path.join(__dirname, '..', 'bin/napi-v3/linux/x64');
 const BIN_FOLDER_EXISTS = fs.existsSync(BIN_FOLDER);
 const CUDA_DLL_EXISTS = fs.existsSync(path.join(BIN_FOLDER, 'libonnxruntime_providers_cuda.so'));
-const ORT_VERSION = require('../package.json').version;
+const ORT_VERSION = require('../package.json').version.replace(/-.*/, '');
 
 const npm_config_local_prefix = process.env.npm_config_local_prefix;
 const npm_package_json = process.env.npm_package_json;
