@@ -69,18 +69,25 @@ def _parse_build_settings(args):
 
     build_settings["build_params"] = build_params
 
+    if "abi_build_params" in build_settings_data:
+        build_settings["abi_build_params"] = build_settings_data["abi_build_params"]
+    else:
+        build_settings["abi_build_params"] = {}
+
     return build_settings
 
 
-def _is_qnn_android_build(build_settings):
-    return any(build_arg.startswith("--use_qnn") for build_arg in build_settings["build_params"])
+def _is_qnn_android_build(build_params):
+    return any(build_arg.startswith("--use_qnn") for build_arg in build_params)
 
 
 def _build_aar(args):
     build_settings = _parse_build_settings(args)
     build_dir = os.path.abspath(args.build_dir)
     ops_config_path = os.path.abspath(args.include_ops_by_config) if args.include_ops_by_config else None
-    qnn_android_build = _is_qnn_android_build(build_settings)
+    qnn_android_build = _is_qnn_android_build(build_settings["build_params"]) or _is_qnn_android_build(
+        build_settings["abi_build_params"].get('arm64-v8a', [])
+    )
 
     # Setup temp environment for building
     temp_env = os.environ.copy()
@@ -99,6 +106,7 @@ def _build_aar(args):
         + ["--config=" + build_config, "--use_vcpkg", "--use_vcpkg_ms_internal_asset_cache"]
     )
     header_files_path = ""
+    qnn_build_args = []
 
     if qnn_android_build:
         qnn_home = args.qnn_path
@@ -116,7 +124,7 @@ def _build_aar(args):
         # yaml file typically has version like 2.26.0
         if qnn_sdk_version:
             qnn_sdk_version = ".".join(qnn_sdk_version.split(".")[:3])
-            base_build_command += ["--qnn_home=" + qnn_home]
+            qnn_build_args += ["--qnn_home=" + qnn_home]
         else:
             raise ValueError("Error: QNN SDK version not found in sdk.yaml file.")
 
@@ -124,6 +132,10 @@ def _build_aar(args):
     for abi in build_settings["build_abis"]:
         abi_build_dir = os.path.join(intermediates_dir, abi)
         abi_build_command = [*base_build_command, "--android_abi=" + abi, "--build_dir=" + abi_build_dir]
+
+        abi_build_command += build_settings["abi_build_params"].get(abi, [])
+        if qnn_android_build:
+            abi_build_command += qnn_build_args
 
         if ops_config_path is not None:
             abi_build_command += ["--include_ops_by_config=" + ops_config_path]
