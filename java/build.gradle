@@ -163,7 +163,7 @@ if (cmakeBuildDir != null) {
 dependencies {
 	testImplementation 'org.junit.jupiter:junit-jupiter-api:5.9.2'
 	testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.9.2'
-	testImplementation 'com.google.protobuf:protobuf-java:3.25.5'
+	testImplementation 'com.google.protobuf:protobuf-java:4.33.6'
 }
 
 processTestResources {
@@ -187,7 +187,6 @@ test {
 		'ENABLE_TRAINING_APIS',
 		'JAVA_FULL_TEST',
 		'USE_ACL',
-		'USE_ARMNN',
 		'USE_AZURE',
 		'USE_CANN',
 		'USE_COREML',

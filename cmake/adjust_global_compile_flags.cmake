@@ -45,8 +45,9 @@ if (CMAKE_SYSTEM_NAME STREQUAL "Emscripten")
     string(APPEND CMAKE_CXX_FLAGS " -msimd128")
   endif()
 
-  # Enable WebAssembly exception catching.
   if (onnxruntime_ENABLE_WEBASSEMBLY_JSPI)
+    add_compile_definitions(ORT_WASM_JSPI)
+    # Enable WebAssembly exception catching.
     string(APPEND CMAKE_C_FLAGS " -fwasm-exceptions -s WASM_LEGACY_EXCEPTIONS=0")
     string(APPEND CMAKE_CXX_FLAGS " -fwasm-exceptions -s WASM_LEGACY_EXCEPTIONS=0")
   elseif (onnxruntime_ENABLE_WEBASSEMBLY_EXCEPTION_CATCHING)
@@ -102,6 +103,11 @@ endif()
 # ORT build with default settings more appropriate for client/on-device workloads.
 if (onnxruntime_CLIENT_PACKAGE_BUILD)
   add_compile_definitions(ORT_CLIENT_PACKAGE_BUILD)
+endif()
+
+# Enable optional callbacks around per-session thread pool work execution.
+if (onnxruntime_ENABLE_SESSION_THREADPOOL_CALLBACKS)
+  add_compile_definitions(ORT_ENABLE_SESSION_THREADPOOL_CALLBACKS)
 endif()
 
 if (onnxruntime_ENABLE_LTO)
@@ -208,10 +214,8 @@ endif()
 
 
 macro(check_nvcc_compiler_flag _FLAG _RESULT)
-    execute_process(COMMAND ${CUDAToolkit_BIN_DIR}/nvcc "${_FLAG}" RESULT_VARIABLE NVCC_OUT ERROR_VARIABLE NVCC_ERROR)
-    message("NVCC_ERROR = ${NVCC_ERROR}")
-    message("NVCC_OUT = ${NVCC_OUT}")
-    if ("${NVCC_OUT}" MATCHES "0")
+    execute_process(COMMAND ${CMAKE_CUDA_COMPILER} --compiler-options "${_FLAG}" -c ${REPO_ROOT}/cmake/empty.c -o ${CMAKE_CURRENT_BINARY_DIR}/empty.o RESULT_VARIABLE NVCC_OUT ERROR_QUIET OUTPUT_QUIET)
+    if (NVCC_OUT EQUAL 0)
         set(${_RESULT} 1)
     else()
         set(${_RESULT} 0)

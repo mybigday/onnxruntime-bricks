@@ -84,6 +84,10 @@ void ParseExecutionProviders(const Napi::Array epList, Ort::SessionOptions& sess
             ORT_NAPI_THROW_TYPEERROR_IF(!valueVar.IsString(), epList.Env(),
                                         "Invalid argument: \"", name, "\" must be a string.");
             value = valueVar.As<Napi::String>().Utf8Value();
+          } else if (name == "enableRobustness") {
+            ORT_NAPI_THROW_TYPEERROR_IF(!valueVar.IsBoolean(), epList.Env(),
+                                        "Invalid argument: \"enableRobustness\" must be a boolean.");
+            value = valueVar.As<Napi::Boolean>().Value() ? "1" : "0";
           } else if (name == "forceCpuNodeNames") {
             ORT_NAPI_THROW_TYPEERROR_IF(!valueVar.IsArray(), epList.Env(),
                                         "Invalid argument: \"forceCpuNodeNames\" must be a string array.");
@@ -143,7 +147,7 @@ void ParseExecutionProviders(const Napi::Array epList, Ort::SessionOptions& sess
 #ifdef USE_CUDA
     } else if (name == "cuda") {
       OrtCUDAProviderOptionsV2* options;
-      Ort::GetApi().CreateCUDAProviderOptions(&options);
+      Ort::ThrowOnError(Ort::GetApi().CreateCUDAProviderOptions(&options));
       options->device_id = deviceId;
       sessionOptions.AppendExecutionProvider_CUDA_V2(*options);
       Ort::GetApi().ReleaseCUDAProviderOptions(options);
@@ -151,7 +155,7 @@ void ParseExecutionProviders(const Napi::Array epList, Ort::SessionOptions& sess
 #ifdef USE_TENSORRT
     } else if (name == "tensorrt") {
       OrtTensorRTProviderOptionsV2* options;
-      Ort::GetApi().CreateTensorRTProviderOptions(&options);
+      Ort::ThrowOnError(Ort::GetApi().CreateTensorRTProviderOptions(&options));
       options->device_id = deviceId;
       sessionOptions.AppendExecutionProvider_TensorRT_V2(*options);
       Ort::GetApi().ReleaseTensorRTProviderOptions(options);

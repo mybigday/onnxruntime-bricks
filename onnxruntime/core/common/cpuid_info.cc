@@ -47,6 +47,16 @@
 
 #endif  // ARM
 
+#if defined(CPUIDINFO_ARCH_RISCV64)
+#include <asm/hwprobe.h>
+#ifndef RISCV_HWPROBE_EXT_ZVFH
+#define RISCV_HWPROBE_EXT_ZVFH (1 << 30)
+#endif
+#ifndef RISCV_HWPROBE_IMA_V
+#define RISCV_HWPROBE_IMA_V (1 << 2)
+#endif
+#endif  // RISCV64
+
 #endif  // Linux
 
 #if _WIN32
@@ -162,13 +172,7 @@ void CPUIDInfo::X86Init() {
         // Check for TPAUSE
         CheckIntelResult check_intel = CheckIntel();
         if (check_intel.is_intel) {
-#ifdef __linux__
-#if !defined(__ANDROID__)
-          has_tpause_ = __builtin_cpu_supports("waitpkg") != 0;
-#endif
-#else
           has_tpause_ = (data[2] & (1 << 5)) != 0;
-#endif
         }
         if (max_SubLeaves >= 1) {
           GetCPUID(7, 1, data);
@@ -213,6 +217,10 @@ void CPUIDInfo::ArmLinuxInit() {
         continue;
       }
       auto coreid = proc->linux_id;
+      if (coreid < 0 || static_cast<size_t>(coreid) >= core_uarchs_.size()) {
+        continue;
+      }
+
       auto uarch = corep->uarch;
       core_uarchs_[coreid] = uarch;
       if (uarch == cpuinfo_uarch_cortex_a53 || uarch == cpuinfo_uarch_cortex_a55r0 ||
@@ -237,9 +245,9 @@ void CPUIDInfo::ArmLinuxInit() {
 #elif defined(_WIN32)  // ^ defined(__linux__)
 
 void CPUIDInfo::ArmWindowsInit() {
-  // Read MIDR and ID_AA64ISAR1_EL1 register values from Windows registry
+  // Read MIDR register values from Windows registry
   // There should be one per CPU
-  std::vector<uint64_t> midr_values{}, id_aa64isar1_el1_values{};
+  std::vector<uint64_t> midr_values{};
 
   // TODO!! Don't support multiple processor group yet!!
   constexpr int MAX_CORES = 64;
@@ -272,17 +280,7 @@ void CPUIDInfo::ArmWindowsInit() {
       break;
     }
 
-    uint64_t id_aa64isar1_el1_value;
-    data_size = sizeof(id_aa64isar1_el1_value);
-
-    // CP 4031 corresponds to ID_AA64ISAR1_EL1 register
-    if (::RegGetValueA(HKEY_LOCAL_MACHINE, processor_subkey, "CP 4031", RRF_RT_REG_QWORD,
-                       nullptr, &id_aa64isar1_el1_value, &data_size) != ERROR_SUCCESS) {
-      break;
-    }
-
     midr_values.push_back(midr_value);
-    id_aa64isar1_el1_values.push_back(id_aa64isar1_el1_value);
   }
 
   // process midr_values
@@ -308,24 +306,28 @@ void CPUIDInfo::ArmWindowsInit() {
     }
   }
 
-  has_arm_neon_i8mm_ = std::all_of(
-      id_aa64isar1_el1_values.begin(), id_aa64isar1_el1_values.end(),
-      [](uint64_t id_aa64isar1_el1_value) {
-        // I8MM, bits [55:52]
-        return ((id_aa64isar1_el1_value >> 52) & 0xF) != 0;
-      });
-
-  has_arm_neon_dot_ = (IsProcessorFeaturePresent(PF_ARM_V82_DP_INSTRUCTIONS_AVAILABLE) != 0);
-
 #if defined(CPUINFO_SUPPORTED)
   if (pytorch_cpuinfo_init_) {
+    has_arm_neon_dot_ = cpuinfo_has_arm_neon_dot();
     has_fp16_ = cpuinfo_has_arm_neon_fp16_arith();
-    // cpuinfo_has_arm_i8mm() doesn't work on Windows yet. See https://github.com/pytorch/cpuinfo/issues/279.
-    // has_arm_neon_i8mm_ = cpuinfo_has_arm_i8mm();
-    has_arm_sve_i8mm_ = cpuinfo_has_arm_sve() && has_arm_neon_i8mm_;
+    has_arm_neon_i8mm_ = cpuinfo_has_arm_i8mm();
+    has_arm_sve_i8mm_ = cpuinfo_has_arm_sve() && cpuinfo_has_arm_i8mm();
     has_arm_neon_bf16_ = cpuinfo_has_arm_neon_bf16();
+    has_arm_sme_ = cpuinfo_has_arm_sme();
+    has_arm_sme2_ = cpuinfo_has_arm_sme2();
   }
 #endif  // defined(CPUINFO_SUPPORTED)
+
+#if defined(PF_ARM_SVE_INSTRUCTIONS_AVAILABLE)
+  // Available from Windows 11 24H2 SDKs; older SDKs lack the constants, in
+  // which case detection falls back to cpuinfo above (or SVE stays off).
+  has_arm_sve_ = has_arm_sve_ || IsProcessorFeaturePresent(PF_ARM_SVE_INSTRUCTIONS_AVAILABLE) != 0;
+#if defined(PF_ARM_SVE_I8MM_INSTRUCTIONS_AVAILABLE)
+  // SVE i8mm gates the svmmla QGEMM kernels; without it they must not dispatch.
+  has_arm_sve_i8mm_ = has_arm_sve_ &&
+                      IsProcessorFeaturePresent(PF_ARM_SVE_I8MM_INSTRUCTIONS_AVAILABLE) != 0;
+#endif
+#endif
 }
 
 #elif defined(__APPLE__)  // ^ defined(_WIN32)
@@ -356,6 +358,17 @@ void CPUIDInfo::ArmAppleInit() {
 #endif  // defined(__APPLE__)
 
 #endif  // defined(CPUIDINFO_ARCH_ARM)
+
+#if defined(CPUIDINFO_ARCH_RISCV64) && defined(__linux__)
+void CPUIDInfo::RiscvLinuxInit() {
+  struct riscv_hwprobe pairs[] = {
+      {RISCV_HWPROBE_KEY_IMA_EXT_0, 0},
+  };
+  if (syscall(__NR_riscv_hwprobe, pairs, 1, 0, nullptr, 0) == 0) {
+    has_fp16_ = (pairs[0].value & RISCV_HWPROBE_EXT_ZVFH) != 0;
+  }
+}
+#endif  // defined(CPUIDINFO_ARCH_RISCV64) && defined(__linux__)
 
 uint32_t CPUIDInfo::GetCurrentCoreIdx() const {
 #ifdef _WIN32
@@ -396,5 +409,20 @@ CPUIDInfo::CPUIDInfo() {
   ArmAppleInit();
 #endif
 #endif  // defined(CPUIDINFO_ARCH_ARM)
+
+#if defined(CPUIDINFO_ARCH_RISCV64)
+#if defined(__linux__)
+  RiscvLinuxInit();
+#endif
+#endif  // defined(CPUIDINFO_ARCH_RISCV64)
+}
+
+CPUIDInfo::~CPUIDInfo() {
+#if defined(CPUINFO_SUPPORTED)
+  if (pytorch_cpuinfo_init_) {
+    cpuinfo_deinitialize();
+    pytorch_cpuinfo_init_ = false;
+  }
+#endif
 }
 }  // namespace onnxruntime

@@ -12,21 +12,21 @@
 #include "core/providers/webgpu/program.h"
 #include "core/providers/webgpu/string_utils.h"
 #include "core/providers/webgpu/string_macros.h"
+#include "core/providers/webgpu/webgpu_context.h"
 
 namespace onnxruntime {
 namespace webgpu {
 
 ShaderHelper::ShaderHelper(const ProgramBase& program,
                            const ProgramMetadata& program_metadata,
+                           const WebGpuContext& webgpu_context,
                            const std::span<uint32_t> inputs_segments,
                            const std::span<uint32_t> outputs_segments,
-                           const wgpu::Device& device,
-                           const wgpu::Limits& limits,
                            uint32_t dispatch_group_size_x,
                            uint32_t dispatch_group_size_y,
                            uint32_t dispatch_group_size_z)
-    : device_{device},
-      limits_{limits},
+    : webgpu_context_{webgpu_context},
+      limits_{webgpu_context.DeviceLimits()},
       inputs_segments_{inputs_segments},
       outputs_segments_{outputs_segments},
       dispatch_group_size_x_{dispatch_group_size_x},
@@ -34,16 +34,18 @@ ShaderHelper::ShaderHelper(const ProgramBase& program,
       dispatch_group_size_z_{dispatch_group_size_z},
       program_{program},
       program_metadata_{program_metadata},
-      additional_implementation_ss_{&additional_implementation_},
-      body_ss_{&body_} {}
+      additional_implementation_ss_{kStringInitialSizeShaderSourceCodeAdditionalImplementation},
+      body_ss_{kStringInitialSizeShaderSourceCodeMain} {}
 
 Status ShaderHelper::Init() {
   // dispatch group size is normalized so no need to validate it here
 
   // validate workgroup size
-  auto workgroup_size_x = program_.WorkgroupSizeX();
-  auto workgroup_size_y = program_.WorkgroupSizeY();
-  auto workgroup_size_z = program_.WorkgroupSizeZ();
+  // normalize 0 (meaning "use default") the same way GenerateSourceCode() does, so validation
+  // below reflects the effective workgroup size that will actually be used in the shader.
+  auto workgroup_size_x = program_.WorkgroupSizeX() == 0 ? uint32_t(WORKGROUP_SIZE) : program_.WorkgroupSizeX();
+  auto workgroup_size_y = program_.WorkgroupSizeY() == 0 ? uint32_t(1) : program_.WorkgroupSizeY();
+  auto workgroup_size_z = program_.WorkgroupSizeZ() == 0 ? uint32_t(1) : program_.WorkgroupSizeZ();
 
   ORT_RETURN_IF_NOT(workgroup_size_x <= limits_.maxComputeWorkgroupSizeX &&
                         workgroup_size_y <= limits_.maxComputeWorkgroupSizeY &&
@@ -56,19 +58,35 @@ Status ShaderHelper::Init() {
   ORT_RETURN_IF_NOT(workgroup_size_x * workgroup_size_y * workgroup_size_z <= limits_.maxComputeInvocationsPerWorkgroup,
                     "Workgroup size exceeds the maximum allowed invocations ", limits_.maxComputeInvocationsPerWorkgroup);
 
+  // validate the requested subgroup size (subgroup-size-control), if any
+  if (auto subgroup_size = program_.SubgroupSize(); subgroup_size != 0) {
+    const auto& adapter_info = webgpu_context_.AdapterInfo();
+    ORT_RETURN_IF_NOT(webgpu_context_.DeviceHasFeature(wgpu::FeatureName::SubgroupSizeControl),
+                      "Program ", program_.Name(), " requires subgroup-size-control but the device does not support it.");
+    ORT_RETURN_IF_NOT((subgroup_size & (subgroup_size - 1)) == 0,
+                      "Requested subgroup size ", subgroup_size, " is not a power of two.");
+    ORT_RETURN_IF_NOT(subgroup_size >= adapter_info.subgroupMinSize && subgroup_size <= adapter_info.subgroupMaxSize,
+                      "Requested subgroup size ", subgroup_size, " is outside the adapter's supported range [",
+                      adapter_info.subgroupMinSize, ", ", adapter_info.subgroupMaxSize, "]");
+    ORT_RETURN_IF_NOT(workgroup_size_x % subgroup_size == 0,
+                      "Workgroup size x (", workgroup_size_x, ") must be a multiple of the requested subgroup size (", subgroup_size, ")");
+  }
+
   // init body string stream
   bool is_1d_dispatch = dispatch_group_size_y_ == 1 && dispatch_group_size_z_ == 1;
   bool use_indirect_dispatch = program_.IndirectDispatchTensor() != nullptr;
-  body_.reserve(4096);
-  additional_implementation_.reserve(1024);
 
   // append header for main function so it is ready for user to append main function body
-  body_ss_ << "@compute @workgroup_size(workgroup_size_x, workgroup_size_y, workgroup_size_z)\n"
+  body_ss_ << "@compute @workgroup_size(workgroup_size_x, workgroup_size_y, workgroup_size_z)";
+  if (program_.SubgroupSize() != 0) {
+    body_ss_ << " @subgroup_size(subgroup_size)";
+  }
+  body_ss_ << "\n"
               "fn main(@builtin(global_invocation_id) global_id : vec3<u32>,\n"
               "        @builtin(workgroup_id) workgroup_id : vec3<u32>,\n"
               "        @builtin(local_invocation_index) local_idx : u32,\n"
               "        @builtin(local_invocation_id) local_id : vec3<u32>";
-  if (device_.HasFeature(wgpu::FeatureName::Subgroups)) {
+  if (webgpu_context_.DeviceHasFeature(wgpu::FeatureName::Subgroups)) {
     body_ss_ << ",\n"
                 "        @builtin(subgroup_invocation_id) sg_id : u32,\n"
                 "        @builtin(subgroup_size) sg_size : u32";
@@ -140,8 +158,13 @@ namespace {
 // Validate if the tensor element type matches the program variable data type
 Status ValidateVariableDataType(int32_t element_type, ProgramVariableDataType var_type, bool is_atomic = false) {
   if (is_atomic) {
-    // float32 is not a valid data type for atomic. However the data may be bitcast-ed to i32 and used to simulate atomic operation using  atomicCompareExchangeWeak.
-    ORT_RETURN_IF_NOT(var_type == ProgramVariableDataType::Int32 || var_type == ProgramVariableDataType::Uint32 || var_type == ProgramVariableDataType::Float32,
+    // float32, float32x4 and float16x4 are not valid data types for atomic. However the data may be bitcast-ed to i32 and used to simulate atomic operation using  atomicCompareExchangeWeak.
+    ORT_RETURN_IF_NOT(var_type == ProgramVariableDataType::Int32 ||
+                          var_type == ProgramVariableDataType::Uint32 ||
+                          var_type == ProgramVariableDataType::Float32 ||
+                          var_type == ProgramVariableDataType::Float16 ||
+                          var_type == ProgramVariableDataType::Float16x4 ||
+                          var_type == ProgramVariableDataType::Float32x4,
                       "Unexpected program variable type ", int(var_type), " for atomic variable");
   }
 
@@ -379,7 +402,7 @@ Status ShaderHelper::ValidateIndices() const {
   return Status::OK();
 }
 
-Status ShaderHelper::GenerateSourceCode(std::string& code, std::vector<int>& shape_uniform_ranks) const {
+Status ShaderHelper::GenerateSourceCode(std::string& code, std::vector<int>& shape_uniform_ranks) {
   SS(ss, kStringInitialSizeShaderSourceCode);
 
   //
@@ -395,21 +418,22 @@ Status ShaderHelper::GenerateSourceCode(std::string& code, std::vector<int>& sha
                   [](const ProgramOutput& output) {
                     return output.tensor->GetElementType() == ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT16;
                   })) {
-    ORT_RETURN_IF_NOT(device_.HasFeature(wgpu::FeatureName::ShaderF16), "Program ", program_.Name(), " requires f16 but the device does not support it.");
+    ORT_RETURN_IF_NOT(webgpu_context_.DeviceHasFeature(wgpu::FeatureName::ShaderF16), "Program ", program_.Name(), " requires f16 but the device does not support it.");
     ss << "enable f16;\n";
   }
-  if (device_.HasFeature(wgpu::FeatureName::Subgroups)) {
+  if (webgpu_context_.DeviceHasFeature(wgpu::FeatureName::Subgroups)) {
     ss << "enable subgroups;\n";
   }
-#if !defined(__wasm__)
-  if (device_.HasFeature(wgpu::FeatureName::ChromiumExperimentalSubgroupMatrix)) {
+  if (program_.SubgroupSize() != 0) {
+    ss << "enable subgroup_size_control;\n";
+  }
+  if (webgpu_context_.DeviceHasFeature(wgpu::FeatureName::ChromiumExperimentalSubgroupMatrix)) {
     ss << "enable chromium_experimental_subgroup_matrix;\n";
 
     // Dawn enforces the subgroup matrix builtin arguments to be uniform in change https://dawn-review.googlesource.com/c/dawn/+/236054
     // Since we use `subgroup_id` as the subgroup matrix builtin argument, we have to turn off this restriction
     ss << "diagnostic (off, chromium.subgroup_matrix_uniformity);\n";
   }
-#endif
 
   //
   // Section constants
@@ -418,6 +442,10 @@ Status ShaderHelper::GenerateSourceCode(std::string& code, std::vector<int>& sha
      << ";\nconst workgroup_size_y: u32 = " << (program_.WorkgroupSizeY() == 0 ? uint32_t(1) : program_.WorkgroupSizeY())
      << ";\nconst workgroup_size_z: u32 = " << (program_.WorkgroupSizeZ() == 0 ? uint32_t(1) : program_.WorkgroupSizeZ())
      << ";\n";
+
+  if (auto subgroup_size = program_.SubgroupSize(); subgroup_size != 0) {
+    ss << "const subgroup_size: u32 = " << subgroup_size << ";\n";
+  }
 
   for (const auto& constant : program_metadata_.constants) {
     ss << "const " << constant.name << ": " << constant.type << " = ";
@@ -472,12 +500,14 @@ Status ShaderHelper::GenerateSourceCode(std::string& code, std::vector<int>& sha
       }
       ss << ": array<";
       if (is_atomic) {
-        if (output->type_ == ProgramVariableDataType::Float32) {
+        if (output->type_ == ProgramVariableDataType::Float32 || output->type_ == ProgramVariableDataType::Float16x4 || output->type_ == ProgramVariableDataType::Float32x4) {
           ss << "atomic<i32>";  // emulate float atomic via i32
         } else if (output->type_ == ProgramVariableDataType::Uint32) {
           ss << "atomic<u32>";
         } else if (output->type_ == ProgramVariableDataType::Int32) {
           ss << "atomic<i32>";
+        } else if (output->type_ == ProgramVariableDataType::Float16) {
+          ss << "atomic<u32>";  // emulate f16 atomic via u32 (storing as packed u16)
         } else {
           ORT_RETURN_IF(true, "Unsupported atomic type: ", int(output->type_));
         }
@@ -494,7 +524,7 @@ Status ShaderHelper::GenerateSourceCode(std::string& code, std::vector<int>& sha
 
   // store shape uniform ranks in shape_uniform_ranks
   bool use_any_shape_uniform = false;
-  ORT_ENFORCE(shape_uniform_ranks.size() == 0);
+  ORT_ENFORCE(shape_uniform_ranks.empty());
   shape_uniform_ranks.reserve(input_vars_.size() + output_vars_.size() + indices_vars_.size());
 
   for (const auto& input : input_vars_) {
@@ -626,12 +656,12 @@ Status ShaderHelper::GenerateSourceCode(std::string& code, std::vector<int>& sha
   //
   // Additional Implementation
   //
-  ss << additional_implementation_;
+  ss << SS_GET(additional_implementation_ss_);
 
   //
   // Main Function Body
   //
-  ss << body_;
+  ss << SS_GET(body_ss_);
   ss << "\n"
         "}\n";
 

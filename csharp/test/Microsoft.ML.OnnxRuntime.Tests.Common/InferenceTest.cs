@@ -164,10 +164,6 @@ namespace Microsoft.ML.OnnxRuntime.Tests
                 opt.AppendExecutionProvider_OpenVINO();
 #endif
 
-#if USE_ROCM
-                opt.AppendExecutionProvider_ROCm(0);
-#endif
-
 #if USE_TENSORRT
                 opt.AppendExecutionProvider_Tensorrt(0);
 #endif
@@ -1764,33 +1760,6 @@ namespace Microsoft.ML.OnnxRuntime.Tests
         }
 #endif
 
-#if USE_ROCM
-        void TestROCMAllocatorInternal(InferenceSession session)
-        {
-            int device_id = 0;
-            using (var info_rocm = new OrtMemoryInfo(OrtMemoryInfo.allocatorHIP, OrtAllocatorType.ArenaAllocator, device_id, OrtMemType.Default))
-            {
-                Assert.Equal("Hip", info_rocm.Name);
-                Assert.Equal(device_id, info_rocm.Id);
-                Assert.Equal(OrtAllocatorType.ArenaAllocator, info_rocm.GetAllocatorType());
-                Assert.Equal(OrtMemType.Default, info_rocm.GetMemoryType());
-
-                using (var allocator = new OrtAllocator(session, info_rocm))
-                {
-                    var alloc_info = allocator.Info;
-                    Assert.True(info_rocm.Equals(alloc_info));
-
-                    uint size = 1024;
-                    OrtMemoryAllocation chunk = allocator.Allocate(size);
-                    Assert.Equal(chunk.Size, size);
-                    Assert.True(chunk.Info.Equals(alloc_info));
-                    chunk.Dispose();
-                    alloc_info.Dispose();
-                }
-            }
-        }
-#endif
-
         [Fact(DisplayName = "TestAllocator")]
         private void TestAllocator()
         {
@@ -1801,21 +1770,12 @@ namespace Microsoft.ML.OnnxRuntime.Tests
 #if USE_CUDA
                 options.AppendExecutionProvider_CUDA(0);
 #endif
-
-#if USE_ROCM
-                options.AppendExecutionProvider_ROCm(0);
-#endif
-
                 using (var session = new InferenceSession(model, options))
                 {
                     TestCPUAllocatorInternal(session);
 #if USE_CUDA
                     TestCUDAAllocatorInternal(session);
 #endif
-#if USE_ROCM
-                    TestROCMAllocatorInternal(session);
-#endif
-
                 }
             }
         }
@@ -1942,15 +1902,6 @@ namespace Microsoft.ML.OnnxRuntime.Tests
                 {
                     option.AppendExecutionProvider_CPU(1);
                 }
-#elif USE_ROCM
-            using (var option = (deviceId.HasValue) ?
-                SessionOptions.MakeSessionOptionWithRocmProvider(deviceId.Value) :
-                new SessionOptions())
-            {
-                if(!deviceId.HasValue)
-                {
-                    option.AppendExecutionProvider_CPU(1);
-                }
 #else
             using (var option = new SessionOptions())
             {
@@ -2014,7 +1965,12 @@ namespace Microsoft.ML.OnnxRuntime.Tests
                 {
                     try
                     {
-                        var task = session.RunAsync(null, inputNames, inputValues, outputNames, outputValues);
+                        RunOptions runOptions = new RunOptions();
+                        var task = session.RunAsync(runOptions, inputNames, inputValues, outputNames, outputValues);
+                        runOptions = null;
+                        // Exercise the managed argument and RunOptions lifetimes while native work is outstanding.
+                        GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, true, true);
+                        GC.WaitForPendingFinalizers();
                         var outputs = await task;
                         var valueOut = outputs.ElementAt<OrtValue>(0);
                         var float16s = valueOut.GetTensorDataAsSpan<Float16>().ToArray();
@@ -2028,6 +1984,34 @@ namespace Microsoft.ML.OnnxRuntime.Tests
             }
         }
 #endif
+
+        [Fact(DisplayName = "TestModelRunAsyncRejectsMismatchedArgumentCounts")]
+        private async Task TestModelRunAsyncRejectsMismatchedArgumentCounts()
+        {
+            Float16[] inputData = { new Float16(15360), new Float16(16384), new Float16(16896), new Float16(17408), new Float16(17664) };
+            long[] shape = { 1, 5 };
+
+            var inputNames = new List<string> { "input" };
+            var outputNames = new List<string> { "output" };
+
+            var model = TestDataLoader.LoadModelFromEmbeddedResource("test_types_FLOAT16.onnx");
+            using (var inputValue = OrtValue.CreateTensorValueFromMemory(inputData, shape))
+            using (var outputValue = OrtValue.CreateAllocatedTensorValue(OrtAllocator.DefaultInstance,
+                    TensorElementType.Float16, shape))
+            using (var session = new InferenceSession(model))
+            {
+                var inputValues = new List<OrtValue> { inputValue };
+                var outputValues = new List<OrtValue> { outputValue };
+
+                var inputException = await Assert.ThrowsAsync<ArgumentException>(() =>
+                    session.RunAsync(null, new List<string>(), inputValues, outputNames, outputValues));
+                Assert.StartsWith("Length of inputNames (0) must match that of inputValues (1).", inputException.Message);
+
+                var outputException = await Assert.ThrowsAsync<ArgumentException>(() =>
+                    session.RunAsync(null, inputNames, inputValues, new List<string>(), outputValues));
+                Assert.StartsWith("Length of outputNames (0) must match that of outputValues (1).", outputException.Message);
+            }
+        }
 
         [Fact(DisplayName = "TestModelRunAsyncTaskFail")]
         private async Task TestModelRunAsyncTaskFail()

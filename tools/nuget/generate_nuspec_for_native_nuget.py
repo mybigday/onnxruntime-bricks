@@ -27,8 +27,6 @@ def get_package_name(os, cpu_arch, ep, is_training_package):
             pkg_name += "-cuda"
         elif ep == "tensorrt":
             pkg_name += "-tensorrt"
-        elif ep == "rocm":
-            pkg_name += "-rocm"
         elif ep == "migraphx":
             pkg_name += "-migraphx"
     elif os == "linux":
@@ -38,8 +36,6 @@ def get_package_name(os, cpu_arch, ep, is_training_package):
             pkg_name += "-cuda"
         elif ep == "tensorrt":
             pkg_name += "-tensorrt"
-        elif ep == "rocm":
-            pkg_name += "-rocm"
         elif ep == "migraphx":
             pkg_name += "-migraphx"
     elif os == "osx":
@@ -242,6 +238,9 @@ def add_common_dependencies(xml_text, package_name, version):
         xml_text.append('<dependency id="Microsoft.ML.OnnxRuntime.Gpu.Windows"' + ' version="' + version + '"/>')
         xml_text.append('<dependency id="Microsoft.ML.OnnxRuntime.Gpu.Linux"' + ' version="' + version + '"/>')
 
+    if package_name == "Microsoft.ML.OnnxRuntime.Foundry":
+        xml_text.append('<dependency id="Microsoft.ML.OnnxRuntime.Gpu.Linux"' + ' version="' + version + '"/>')
+
 
 def generate_dependencies(xml_text, package_name, version):
     dml_dependency = '<dependency id="Microsoft.AI.DirectML" version="1.15.4"/>'
@@ -375,7 +374,6 @@ def generate_files(line_list, args):
     is_cuda_gpu_package = args.package_name == "Microsoft.ML.OnnxRuntime.Gpu"
     is_cuda_gpu_win_sub_package = args.package_name == "Microsoft.ML.OnnxRuntime.Gpu.Windows"
     is_cuda_gpu_linux_sub_package = args.package_name == "Microsoft.ML.OnnxRuntime.Gpu.Linux"
-    is_rocm_gpu_package = args.package_name == "Microsoft.ML.OnnxRuntime.ROCm"
     is_dml_package = args.package_name == "Microsoft.ML.OnnxRuntime.DirectML"
     is_windowsai_package = args.package_name == "Microsoft.AI.MachineLearning"
     is_snpe_package = args.package_name == "Microsoft.ML.OnnxRuntime.Snpe"
@@ -440,7 +438,6 @@ def generate_files(line_list, args):
             "tensorrt_ep_shared_lib": "libonnxruntime_providers_tensorrt.so",
             "openvino_ep_shared_lib": "libonnxruntime_providers_openvino.so",
             "cuda_ep_shared_lib": "libonnxruntime_providers_cuda.so",
-            "rocm_ep_shared_lib": "libonnxruntime_providers_rocm.so",
             "migraphx_ep_shared_lib": "libonnxruntime_providers_migraphx.so",
             "onnxruntime_perf_test": "onnxruntime_perf_test",
             "onnx_test_runner": "onnx_test_runner",
@@ -465,6 +462,14 @@ def generate_files(line_list, args):
             "<file src="
             + '"'
             + os.path.join(args.sources_path, "include\\onnxruntime\\core\\session\\onnxruntime_*.h")
+            + '" target="'
+            + include_dir
+            + '" />'
+        )
+        files_list.append(
+            "<file src="
+            + '"'
+            + os.path.join(args.sources_path, "include\\onnxruntime\\core\\session\\onnxruntime_*.inc")
             + '" target="'
             + include_dir
             + '" />'
@@ -595,15 +600,28 @@ def generate_files(line_list, args):
             files_list.append(
                 "<file src=" + '"' + os.path.join(args.native_build_path, "QnnHtpPrepare.dll") + runtimes + " />"
             )
-            files_list.append(
-                "<file src=" + '"' + os.path.join(args.native_build_path, "QnnHtpV73Stub.dll") + runtimes + " />"
-            )
-            files_list.append(
-                "<file src=" + '"' + os.path.join(args.native_build_path, "libQnnHtpV73Skel.so") + runtimes + " />"
-            )
-            files_list.append(
-                "<file src=" + '"' + os.path.join(args.native_build_path, "libqnnhtpv73.cat") + runtimes + " />"
-            )
+            for htp_arch in [73, 81]:
+                files_list.append(
+                    "<file src="
+                    + '"'
+                    + os.path.join(args.native_build_path, f"QnnHtpV{htp_arch}Stub.dll")
+                    + runtimes
+                    + " />"
+                )
+                files_list.append(
+                    "<file src="
+                    + '"'
+                    + os.path.join(args.native_build_path, f"libQnnHtpV{htp_arch}Skel.so")
+                    + runtimes
+                    + " />"
+                )
+                files_list.append(
+                    "<file src="
+                    + '"'
+                    + os.path.join(args.native_build_path, f"libqnnhtpv{htp_arch}.cat")
+                    + runtimes
+                    + " />"
+                )
 
     is_ado_packaging_build = False
     # Process runtimes
@@ -618,8 +636,6 @@ def generate_files(line_list, args):
             # downloaded from other build jobs
             if is_cuda_gpu_package or is_cuda_gpu_win_sub_package or is_cuda_gpu_linux_sub_package:
                 ep_list = ["tensorrt", "cuda", None]
-            elif is_rocm_gpu_package:
-                ep_list = ["rocm", None]
             elif is_migraphx_package:
                 ep_list = ["migraphx", None]
             else:
@@ -724,24 +740,6 @@ def generate_files(line_list, args):
             "<file src="
             + '"'
             + os.path.join(args.native_build_path, nuget_dependencies["dnnl_ep_shared_lib"])
-            + runtimes_target
-            + args.target_architecture
-            + '\\native" />'
-        )
-
-    if args.execution_provider == "rocm" or (is_rocm_gpu_package and not is_ado_packaging_build):
-        files_list.append(
-            "<file src="
-            + '"'
-            + os.path.join(args.native_build_path, nuget_dependencies["providers_shared_lib"])
-            + runtimes_target
-            + args.target_architecture
-            + '\\native" />'
-        )
-        files_list.append(
-            "<file src="
-            + '"'
-            + os.path.join(args.native_build_path, nuget_dependencies["rocm_ep_shared_lib"])
             + runtimes_target
             + args.target_architecture
             + '\\native" />'
@@ -985,7 +983,6 @@ def generate_files(line_list, args):
         or is_cuda_gpu_package
         or is_cuda_gpu_linux_sub_package
         or is_cuda_gpu_win_sub_package
-        or is_rocm_gpu_package
         or is_migraphx_package
         or is_dml_package
         or is_mklml_package
@@ -1227,12 +1224,11 @@ def validate_execution_provider(execution_provider):
             or execution_provider == "cuda"
             or execution_provider == "tensorrt"
             or execution_provider == "openvino"
-            or execution_provider == "rocm"
             or execution_provider == "migraphx"
         ):
             raise Exception(
                 "On Linux platform nuget generation is supported only "
-                "for cpu|cuda|dnnl|tensorrt|openvino|rocm execution providers."
+                "for cpu|cuda|dnnl|tensorrt|openvino|migraphx execution providers."
             )
 
 
